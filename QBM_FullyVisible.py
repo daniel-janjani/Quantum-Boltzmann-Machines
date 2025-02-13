@@ -5,7 +5,7 @@ import itertools
 import pandas as pd
 
 # Constants
-N = 6  # Number of visible qubits
+N = 7  # Number of visible qubits
 M = 8  # Number of modes for data distribution
 p = 0.9  # Probability of alignment
 eta = 0.3 # Learning rate (increased)
@@ -43,7 +43,7 @@ def tensor_product(ops):
     return result
 
 gamma_sigma = np.zeros((2**N, 2**N))
-b_sigma = np.zeros(N,dtype=object)
+b_sigma = np.zeros(N, dtype=object)
 W_sigma = np.zeros((N, N),dtype=object)
 for a in range(N):
     gamma_sigma += tensor_product([I] * a + [sigma_x] + [I] * (N - a - 1))
@@ -51,18 +51,21 @@ for a in range(N):
     for b in range(a + 1, N): 
         W_sigma[a,b] = tensor_product([I] * a + [sigma_z] + [I] * (b - a - 1) + [sigma_z] + [I] * (N - b - 1))
 
+def build_states(N):
+    all_states = np.zeros((2**N, N))
+    for s in range(N):
+        all_states[:, s] = np.diag(b_sigma[s])
+    return all_states
+
 def build_hamiltonian(N, Gamma, b, W):
     """Construct the Fully Visible QBM Hamiltonian with a transverse field."""
     H = np.zeros((2**N, 2**N), dtype=complex)
-    all_states = np.zeros((2**N, N))
-
     H = -Gamma * gamma_sigma  # Transverse field
     for a in range(N):
         H -= b[a] * b_sigma[a]  
-        all_states[:, a] = np.diag(b_sigma[a])
         for i in range(a + 1, N):
             H -= W[a, i] * W_sigma[a, i] 
-    return H, all_states
+    return H
 
 def compute_kl_upper_bound(P_data, P_model):
     """Compute the KL divergence upper bound using P_model: diagonal elements of rho."""
@@ -74,15 +77,14 @@ def compute_density_matrix(H):
     Z = np.trace(exp_H)
     return exp_H / Z, Z
 
-def compute_partial_expH(H, projector, partial_H, n=1):
-    exp_H = expm(-H)
+def compute_partial_expH(H, rho, Z, projector, partial_H, n=1):
     avg_v = 0.
     delta_t = 1.0 / n
     for m in range(1, n + 1):
         t = m * delta_t
         exp1 = expm(-t*H)  # e^(-τH)
         exp2 = expm((t - 1) * H)  # e^{-(1-τ)H}
-        avg_v += (np.trace(projector @ exp1 @ partial_H @ exp2) / (np.trace(projector @ exp_H) + 1e-12 )) * delta_t
+        avg_v += (np.trace(projector @ exp1 @ partial_H @ exp2) / (np.trace(projector @ rho*Z) + 1e-12 )) * delta_t
     return -avg_v
 
 def compute_full_probability_distribution(rho):
@@ -91,8 +93,7 @@ def compute_full_probability_distribution(rho):
 
 
 state_proj = np.zeros((2**N, 2**N))
-
-def compute_gradient_update(P_data, rho, H, all_states, N, eta):
+def compute_gradient_update(P_data, H, rho, Z, all_states, N, eta):
     """Compute the gradient updates for the QBM parameters."""
     n = 1
     global state_proj
@@ -108,16 +109,16 @@ def compute_gradient_update(P_data, rho, H, all_states, N, eta):
       Gamma_data_avg = 0.
       for z in range(N_states):
             state_proj[z, z] = 1
-            z_data_avg[a] += P_data[z] * compute_partial_expH(H, state_proj, b_sigma[a], n)
-            Gamma_data_avg += P_data[z] * compute_partial_expH(H, state_proj, gamma_sigma, n)
+            z_data_avg[a] += P_data[z] * compute_partial_expH(H, rho, Z, state_proj, b_sigma[a], n)
+            Gamma_data_avg += P_data[z] * compute_partial_expH(H, rho, Z, state_proj, gamma_sigma, n)
             state_proj[z, z] = 0
       for b in range(a + 1, N):
          zz_model_avg[a, b] = np.trace(rho @  W_sigma[a,b]).real
-         #zz_model_avg[b, a] = zz_model_avg[a, b]
+         #zz_model_avg[b, a] = zz_model_avg[a, b]  # Ensure symmetry
          for z in range(N_states):
             state_proj[z, z] = 1
-            zz_data_avg[a, b] += P_data[z] * compute_partial_expH(H, state_proj,  W_sigma[a, b], n)
-            #zz_data_avg[b, a] = zz_data_avg[a, b]  # Ensure symmetry
+            zz_data_avg[a, b] += P_data[z] * compute_partial_expH(H, rho, Z, state_proj,  W_sigma[a, b], n)
+            #zz_data_avg[b, a] = zz_data_avg[a, b]  
             state_proj[z, z] = 0
              
     Gamma_model_avg = np.trace(rho @ gamma_sigma).real
@@ -133,14 +134,15 @@ def optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations):
 
     kl_divergence = []
     for it in range(iterations):
-        H, _ = build_hamiltonian(N, Gamma, b, W)
+        H = build_hamiltonian(N, Gamma, b, W)
         rho, _ = compute_density_matrix(H)
+        _, Z = compute_density_matrix(H)
         P_model = compute_full_probability_distribution(rho)
 
         KL_bound = compute_kl_upper_bound(P_data, P_model)
         kl_divergence.append(KL_bound)
 
-        delta_b, delta_W, delta_Gamma = compute_gradient_update(P_data, rho, H, all_states, N, eta)
+        delta_b, delta_W, delta_Gamma = compute_gradient_update(P_data, H, rho, Z, all_states, N, eta)
         b += delta_b
         W += delta_W
         Gamma += delta_Gamma
@@ -153,7 +155,7 @@ b = 0.1 * np.random.randn(N)
 W = 0.1 * np.random.randn(N, N)
 Gamma = 0.1
 
-_, all_states = build_hamiltonian(N, Gamma, b, W)
+all_states = build_states(N)
 P_data = mixture_data_distribution(all_states, centers, p)
 print("Check sum of P_data:", P_data.sum().item())  # ~1.0
 print("Check dimension of P_data:", P_data.shape)  # ~2^10 = 1024
