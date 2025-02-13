@@ -5,7 +5,7 @@ import itertools
 import pandas as pd
 
 # Constants
-N = 5  # Number of visible qubits
+N = 6  # Number of visible qubits
 M = 8  # Number of modes for data distribution
 p = 0.9  # Probability of alignment
 eta = 0.3 # Learning rate (increased)
@@ -42,17 +42,26 @@ def tensor_product(ops):
         result = np.kron(result, op)
     return result
 
+gamma_sigma = np.zeros((2**N, 2**N))
+b_sigma = np.zeros(N,dtype=object)
+W_sigma = np.zeros((N, N),dtype=object)
+for a in range(N):
+    gamma_sigma += tensor_product([I] * a + [sigma_x] + [I] * (N - a - 1))
+    b_sigma[a] = tensor_product([I] * a + [sigma_z] + [I] * (N - a - 1)) 
+    for b in range(a + 1, N): 
+        W_sigma[a,b] = tensor_product([I] * a + [sigma_z] + [I] * (b - a - 1) + [sigma_z] + [I] * (N - b - 1))
+
 def build_hamiltonian(N, Gamma, b, W):
     """Construct the Fully Visible QBM Hamiltonian with a transverse field."""
     H = np.zeros((2**N, 2**N), dtype=complex)
     all_states = np.zeros((2**N, N))
 
+    H = -Gamma * gamma_sigma  # Transverse field
     for a in range(N):
-        H -= Gamma * tensor_product([I] * a + [sigma_x] + [I] * (N - a - 1))  # Transverse field
-        H -= b[a] * tensor_product([I] * a + [sigma_z] + [I] * (N - a - 1))  
-        all_states[:, a] = np.diag(tensor_product([I] * a + [sigma_z] + [I] * (N - a - 1)))
+        H -= b[a] * b_sigma[a]  
+        all_states[:, a] = np.diag(b_sigma[a])
         for i in range(a + 1, N):
-            H -= W[a, i] * tensor_product([I] * a + [sigma_z] + [I] * (i - a - 1) + [sigma_z] + [I] * (N - i - 1)) 
+            H -= W[a, i] * W_sigma[a, i] 
     return H, all_states
 
 def compute_kl_upper_bound(P_data, P_model):
@@ -65,7 +74,7 @@ def compute_density_matrix(H):
     Z = np.trace(exp_H)
     return exp_H / Z, Z
 
-def compute_partial_expH(H, projector, partial_H, n=80):
+def compute_partial_expH(H, projector, partial_H, n=1):
     exp_H = expm(-H)
     avg_v = 0.
     delta_t = 1.0 / n
@@ -80,19 +89,12 @@ def compute_full_probability_distribution(rho):
     """Return the diagonal elements of rho as the model probability distribution."""
     return np.real(np.diag(rho))
 
-gamma_sigma = np.zeros((2**N, 2**N))
-b_sigma = np.zeros(N,dtype=object)
-W_sigma = np.zeros((N, N),dtype=object)
+
 state_proj = np.zeros((2**N, 2**N))
-for a in range(N):
-    gamma_sigma += tensor_product([I] * a + [sigma_x] + [I] * (N - a - 1))
-    b_sigma[a] = tensor_product([I] * a + [sigma_z] + [I] * (N - a - 1)) 
-    for b in range(a + 1, N): 
-        W_sigma[a,b] = tensor_product([I] * a + [sigma_z] + [I] * (b - a - 1) + [sigma_z] + [I] * (N - b - 1))
 
 def compute_gradient_update(P_data, rho, H, all_states, N, eta):
     """Compute the gradient updates for the QBM parameters."""
-    n = 80
+    n = 1
     global state_proj
 
     z_model_avg = np.zeros(N)
@@ -114,7 +116,7 @@ def compute_gradient_update(P_data, rho, H, all_states, N, eta):
          #zz_model_avg[b, a] = zz_model_avg[a, b]
          for z in range(N_states):
             state_proj[z, z] = 1
-            zz_data_avg[a, b] += P_data[z] * compute_partial_expH(H, state_proj,  W_sigma[a,b], n)
+            zz_data_avg[a, b] += P_data[z] * compute_partial_expH(H, state_proj,  W_sigma[a, b], n)
             #zz_data_avg[b, a] = zz_data_avg[a, b]  # Ensure symmetry
             state_proj[z, z] = 0
              
@@ -123,6 +125,7 @@ def compute_gradient_update(P_data, rho, H, all_states, N, eta):
     delta_b = -eta * (z_data_avg + z_model_avg)
     delta_W = -eta * (zz_data_avg + zz_model_avg)
     delta_Gamma = -eta * (Gamma_data_avg + Gamma_model_avg)
+
     return delta_b, delta_W, delta_Gamma
 
 def optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations):
@@ -148,7 +151,7 @@ def optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations):
 # Initialize parameters
 b = 0.1 * np.random.randn(N)
 W = 0.1 * np.random.randn(N, N)
-Gamma = 0.1 * np.randn
+Gamma = 0.1
 
 _, all_states = build_hamiltonian(N, Gamma, b, W)
 P_data = mixture_data_distribution(all_states, centers, p)
