@@ -8,7 +8,7 @@ import itertools
 N = 10  # Number of visible qubits
 M = 8  # Number of modes for data distribution
 p = 0.9  # Probability of alignment
-eta = 0.6 # Learning rate (increased)
+eta = 0.5 # Learning rate (increased)
 iterations = 35  # Number of optimization steps
 Gamma = 2 # Fixed transverse field strength
 
