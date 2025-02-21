@@ -43,6 +43,7 @@ def tensor_product(ops):
     return result
 
 # Compute sigma_z(a), sigma_x(a) and sigma_z(a,b) matrices for each a,b = 1,...,N
+# Will be useful especially later, when computing the gradients
 gamma_sigma = np.zeros((2**N, 2**N))
 b_sigma = np.zeros(N, dtype=object)
 W_sigma = np.zeros((N, N),dtype=object)
