@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import itertools
 
 # Define Parameters
-N = 10  # Number of visible qubits
+N = 8  # Number of visible qubits
 M = 8  # Number of modes for data distribution
-p = 0.9  # Probability of alignment
-eta = 0.5 # Learning rate (increased)
+p = 0.9  # Spin alignment probability with mode centers
+eta = 0.9 # Learning rate (increased)
 iterations = 35  # Number of optimization steps
 Gamma = 2 # Fixed transverse field strength
 
@@ -22,6 +22,8 @@ centers = np.random.randint(low=0, high=2, size=(M, N)) # in {0,1}
 centers = 2*centers - 1  # map to {+1,-1}
 
 def mixture_data_distribution(all_states, centers, p):  
+    """Generate training data as a mixture of M modes using 
+        Bernouilli distribution: p^(N-d_kv)*(1-p)^d_kv """
     num_modes = centers.shape[0]  # The number of modes (M=8) is the centers' number of rows
     N_ = centers.shape[1]         # The number of bits (N=10) is the centers' number of columns 
     N_states = all_states.shape[0] # (2^N)
@@ -30,7 +32,7 @@ def mixture_data_distribution(all_states, centers, p):
         mode_sum = 0.0
         for k in range(num_modes): 
             d_ks = 0.5 * np.sum(1 - all_states[s, :] * centers[k, :])  # Hamming distance between state s and center k
-            mode_sum += p**(N_ - d_ks) * (1 - p)**d_ks 
+            mode_sum += p**(N_ - d_ks) * (1 - p)**d_ks  # Mixture of Bernoulli distribution
         probs[s] = mode_sum / num_modes   # Generating P_data for each state
     # normalitation
     probs /= probs.sum()
@@ -78,7 +80,7 @@ def compute_full_probability_distribution(rho):
     """Compute the full probability distribution P_v from diagonal elements of rho."""
     return np.real(np.diag(rho))  # Extract diagonal elements as probabilities
 
-# Kullback-Leibler (KL) divergence: KL = Likelyhood - Likelyhood_min
+# Kullback-Leibler (KL) divergence: KL = Likelihood - Likelihood_min
 def compute_kl_upper_bound(P_data, P_model):
     """Compute the KL divergence upper bound using P_model: diagonal elements of rho."""
     return np.sum(P_data * np.log((P_data + 1e-12)/(P_model + 1e-12)))
@@ -147,20 +149,9 @@ print(type(P_data))
 # Optimize the Fully Visible Bound-Based QBM
 kl_upper_bounds = optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations)
 
-
-df = pd.DataFrame({"iteration": range(1, iterations + 1), "kl_upper_bounds": kl_upper_bounds})
-
 # Saving Data frame in CSV
+df = pd.DataFrame({"iteration": range(1, iterations + 1), "kl_upper_bounds": kl_upper_bounds})
 df.to_csv("FullyVisible_bQBM.csv", index=False)
 print("Dati salvati in FullyVisible_bQBM.csv")
 
 df = pd.read_csv("FullyVisible_bQBM.csv")
-
-# Plot KL divergence upper bound over iterations
-plt.figure(figsize=(8, 6))
-plt.plot(df['iteration'], df['kl_upper_bounds'], marker='o', label='KL Upper Bound over Iterations')
-plt.xlabel("Iteration")
-plt.ylabel("KL Upper Bound")
-plt.title("KL Upper Bound Over Iterations (FV-bQBM)")
-plt.grid()
-plt.show()
