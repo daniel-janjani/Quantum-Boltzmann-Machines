@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Jan 25 19:13:50 2025
-
-@author: danie
-"""
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -46,12 +39,11 @@ def kl_divergence(P_data, P_model):
     return np.sum(P_data * np.log((P_data + 1e-12)/(P_model + 1e-12)))
 
 # Define Parameters
-N = 5  # Number of visible spins z in {+1, -1}
-M = 8  # number of modes
-p = 0.9 # spin alignment probability with its mode center
-
-eta = 0.2  # learning rate
-num_steps = 35
+N = 8  # Number of visible spins z in {+1, -1}
+M = 8  # Number of modes for data distribution
+p = 0.9 # Spin alignment probability with mode centers
+eta = 0.2  # Learning rate
+num_steps = 35 # Number of optimization steps
 
 # Generate M random center points s^k in {+1, -1}^N
 centers = np.random.randint(low=0, high=2, size=(M, N))  # in {0,1}
@@ -62,6 +54,10 @@ all_configs = list(itertools.product([-1, +1], repeat=N))
 all_z = np.array(all_configs, dtype=np.float32)  # (2^N, N)
 
 def mixture_data_distribution(all_states, centers, p):  
+    """ 
+    Generate training data as a mixture of M modes using 
+    Bernouilli distribution: p^(N-d_kv)*(1-p)^d_kv
+    """
     num_modes = centers.shape[0]  # The number of modes (M=8) is the centers' number of rows
     N_ = centers.shape[1]         # The number of bits (N=10) is the centers' number of columns 
     N_states = all_states.shape[0]  # (2^N)
@@ -70,7 +66,7 @@ def mixture_data_distribution(all_states, centers, p):
         mode_sum = 0.0
         for k in range(num_modes):
             d_ks = 0.5 * np.sum(1 - all_states[s, :] * centers[k, :])  # Hamming distance between state s and center k
-            mode_sum += p**(N_ - d_ks) * (1 - p)**d_ks 
+            mode_sum += p**(N_ - d_ks) * (1 - p)**d_ks  # mixture of Bernoulli distribution
         probs[s] = mode_sum / num_modes  # Generating P_data for each state
     # normalitation
     probs /= probs.sum()
