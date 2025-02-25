@@ -86,6 +86,9 @@ for i in range(N_states):
 
 # Manual Gradient Updates Using exact formulas
 # Initialize parameters (b, W) using 'random.seed'
+# same seed in other codes for better confrontation
+
+# the classic BM actually performs better when the parameters are initialized as zero
 np.random.seed(42)
 b = 0.01 * np.random.randn(N)
 W = 0.01 * np.random.randn(N, N)
@@ -116,9 +119,11 @@ for step in range(num_steps):
         print(f"Iter {step}: KL = {this_kl.item():.4f}")
 
 # Saving Data frame in CSV
+# this way we don't need to compute everything all over again
 df = pd.DataFrame({"iteration": list(range(num_steps)), "kl_history": kl_history})
 df.to_csv("BM.csv", index=False)
-print("Dati salvati in BM.csv")
+print("Data saved in BM.csv")
+
 
 df = pd.read_csv("BM.csv")
 
