@@ -153,3 +153,12 @@ df.to_csv("FullyVisible_bQBM.csv", index=False)
 print("Dati salvati in FullyVisible_bQBM.csv")
 
 df = pd.read_csv("FullyVisible_bQBM.csv")
+
+# Plot KL divergence upper bound over iterations
+plt.figure(figsize=(8, 6))
+plt.plot(df['iteration'], df['kl_upper_bounds'], marker='o', label='KL Upper Bound over Iterations')
+plt.xlabel("Iteration")
+plt.ylabel("KL Upper Bound")
+plt.title("KL Upper Bound Over Iterations (FV-bQBM)")
+plt.grid()
+plt.show()
