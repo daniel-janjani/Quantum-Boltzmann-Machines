@@ -188,7 +188,7 @@ print("Dati salvati in FullyVisible_QBM.csv")
 df = pd.read_csv("FullyVisible_QBM.csv")
 
 # Plot KL divergence over iterations
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(6, 4))
 plt.plot(df['iteration'], df['kl_divergence'], marker='o', label='KL divergence over Iterations')
 plt.xlabel("Iteration")
 plt.ylabel("KL divergence")
