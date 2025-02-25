@@ -2,7 +2,6 @@ import numpy as np
 from scipy.linalg import expm
 import pandas as pd
 import matplotlib.pyplot as plt
-import itertools
 
 # Define Parameters
 N = 8  # Number of visible qubits
@@ -77,11 +76,10 @@ def compute_density_matrix(H):
     return rho, Z
 
 def compute_full_probability_distribution(rho):
-    """Compute the full probability distribution P_v from diagonal elements of rho."""
     return np.real(np.diag(rho))  # Extract diagonal elements as probabilities
 
 # Kullback-Leibler (KL) divergence: KL = Likelihood - Likelihood_min
-def compute_kl_upper_bound(P_data, P_model):
+def compute_kl(P_data, P_model):
     """Compute the KL divergence upper bound using P_model: diagonal elements of rho."""
     return np.sum(P_data * np.log((P_data + 1e-12)/(P_model + 1e-12)))
 
@@ -116,7 +114,7 @@ def compute_gradient_update(P_data, rho, all_states, N, eta):
 def optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations):
     """Optimize the Fully Visible Bound-Based QBM."""
 
-    kl_upper_bounds = []
+    kls = []
     for it in range(iterations):
         H = build_hamiltonian(N, Gamma, b, W)
         rho, _ = compute_density_matrix(H)
@@ -125,15 +123,15 @@ def optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations):
         P_model = compute_full_probability_distribution(rho)
         
         # Compute and save KL value
-        KL_bound = compute_kl_upper_bound(P_data, P_model)
-        kl_upper_bounds.append(KL_bound)
+        KL_bound = compute_kl(P_data, P_model)
+        kls.append(KL_bound)
         
         delta_b, delta_W = compute_gradient_update(P_data, rho, all_states, N, eta)
         b += delta_b
         W += delta_W
 
         print(f"Iteration {it+1}/{iterations}, KL Upper Bound: {KL_bound:.6f}, Δb={np.linalg.norm(delta_b):.6f}, Δw={np.linalg.norm(delta_W):.6f}")
-    return kl_upper_bounds
+    return kls
 
 # Initialize parameters (b, W) using 'random.seed'
 np.random.seed(42)
@@ -147,10 +145,10 @@ print("Check dimension of P_data:", P_data.shape)  # ~2^10 = 1024
 print(type(P_data))
 
 # Optimize the Fully Visible Bound-Based QBM
-kl_upper_bounds = optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations)
+kls = optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations)
 
 # Saving Data frame in CSV
-df = pd.DataFrame({"iteration": range(1, iterations + 1), "kl_upper_bounds": kl_upper_bounds})
+df = pd.DataFrame({"iteration": range(1, iterations + 1), "kls": kls})
 df.to_csv("FullyVisible_bQBM.csv", index=False)
 print("Dati salvati in FullyVisible_bQBM.csv")
 
