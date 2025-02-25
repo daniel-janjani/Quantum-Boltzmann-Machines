@@ -2,7 +2,6 @@ import numpy as np
 from scipy.linalg import expm
 import pandas as pd
 import matplotlib.pyplot as plt
-import itertools
 
 # Define Parameters
 N = 8  # Number of visible qubits
@@ -75,12 +74,10 @@ def compute_density_matrix(H):
     return exp_H / Z, Z
 
 def compute_full_probability_distribution(rho):
-    """Return the diagonal elements of rho as the model probability distribution."""
     return np.real(np.diag(rho))  # Extract diagonal elements as probabilities
 
 # Kullback-Leibler (KL) divergence: KL = Likelihood - Likelihood_min
-def compute_kl_upper_bound(P_data, P_model):
-    """Compute the KL divergence upper bound using P_model: diagonal elements of rho."""
+def compute_kl(P_data, P_model):
     return np.sum(P_data * np.log((P_data + 1e-12)/(P_model + 1e-12)))
 
 # Building derivative to compute "positive phase"
@@ -157,7 +154,7 @@ def optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iterations):
         P_model = compute_full_probability_distribution(rho)
 
         # Compute and save KL value
-        KL_bound = compute_kl_upper_bound(P_data, P_model)
+        KL_bound = compute_kl(P_data, P_model)
         kl_divergence.append(KL_bound)
         
         delta_b, delta_W, delta_Gamma = compute_gradient_update(P_data, H, rho, Z, all_states, N, eta)
@@ -190,7 +187,7 @@ print("Dati salvati in FullyVisible_QBM.csv")
 
 df = pd.read_csv("FullyVisible_QBM.csv")
 
-# Plot KL divergence upper bound over iterations
+# Plot KL divergence over iterations
 plt.figure(figsize=(8, 6))
 plt.plot(df['iteration'], df['kl_divergence'], marker='o', label='KL divergence over Iterations')
 plt.xlabel("Iteration")
