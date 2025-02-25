@@ -152,14 +152,3 @@ kl_upper_bounds = optimize_qbm(P_data, all_states, N, Gamma, b, W, eta, iteratio
 df = pd.DataFrame({"iteration": range(1, iterations + 1), "kl_upper_bounds": kl_upper_bounds})
 df.to_csv("FullyVisible_bQBM.csv", index=False)
 print("Dati salvati in FullyVisible_bQBM.csv")
-
-df = pd.read_csv("FullyVisible_bQBM.csv")
-
-# Plot KL divergence upper bound over iterations
-plt.figure(figsize=(8, 6))
-plt.plot(df['iteration'], df['kl_upper_bounds'], marker='o', label='KL Upper Bound over Iterations')
-plt.xlabel("Iteration")
-plt.ylabel("KL Upper Bound")
-plt.title("KL Upper Bound Over Iterations (FV-bQBM)")
-plt.grid()
-plt.show()
